@@ -37,20 +37,33 @@ validation <- read.csv(url(valUrl), header=TRUE, sep=",", na.strings=c("NA","#DI
 
 ## Removing some features
 
-From explanation of the data, has been deducted that the following features have to be removed.
+It has been deducted that the following features have to be removed, because they have information related to order of the registers, the user who get  the data, and information about the timestamp. 
+
 
 ```{r}
-data <- data[, -seq(1:7)]
-validation <- validation[, -seq(1:7)]
+data$X <- NULL
+data$user_name <- NULL
+data$raw_timestamp_part_1 <- NULL
+data$raw_timestamp_part_2 <- NULL
+data$cvtd_timestamp <- NULL
+data$new_window <- NULL
+data$num_window <- NULL
+
+validation$X <- NULL
+validation$user_name <- NULL
+validation$raw_timestamp_part_1 <- NULL
+validation$raw_timestamp_part_2 <- NULL
+validation$cvtd_timestamp <- NULL
+validation$new_window <- NULL
+validation$num_window <- NULL
 
 ```
 
 
 ## Detecting missing data and treatment
 
-To treat missing data, first try to detect NAs and proportions of those. We will considerer not usefull
-the feature if the porcentage of Nas is greater than 70%.
-
+To treat missing data, first try to detect the NAs and the proportions of those. We will considerer a not usefull feature, if the feature's percentage of Nas is greater than 70%.
+Relying on this, all features with NAs have more than 70% of NAs, then we remove these features, in training data, and also in validation data.
 
 ```{r}
 
@@ -73,7 +86,7 @@ propmiss <- function(dataframe) {
 
 missData <- propmiss(data)
 
-str(missData)
+missData
 
 missDataVars <- missData[missData$propmiss > 0.70,]$variable
 data <- data[, !names(data)%in%missDataVars]
@@ -105,30 +118,35 @@ validation <- validation[, -strong_correlations]
 
 ##Before to train the model, preprocessing features
 
+To normalize the features, it's used knnImpute, center and scale. The normalization usually helps to the model to distinguess better how to select the most important features to get the different decissions to clasification. 
+
 ```{r}
 
 last <- as.numeric(ncol(data))
 
-preObj <-preProcess(data[,-c(last)],method=c('knnImpute', 'center', 'scale'))
-dataPrep <- predict(preObj, data[,-c(last)])
-dataPrep$classe <- data$classe
+knn_center_scale <-preProcess(data[,-c(last)],method=c('knnImpute', 'center', 'scale'))
+dataPreprocesed <- predict(knn_center_scale, data[,-c(last)])
+dataPreprocesed$classe <- data$classe
 
-valPrep <-predict(preObj,validation[,-c(last)])
-valPrep$problem_id <- validation$problem_id
+valPreprocesed <-predict(knn_center_scale,validation[,-c(last)])
+valPreprocesed$problem_id <- validation$problem_id
 
 ```
 
 
 ### Train the model
 
+We create the partitions first, to obtain from the data set the training and testing set. After that
+the Random Forest Model is trained based on the training set.
+
 ```{r}
 
-inTrain <- createDataPartition(y=dataPrep$classe, p=0.7, list=FALSE )
-training <- dataPrep[inTrain,]
-testing <- dataPrep[-inTrain,]
+inTrain <- createDataPartition(y=dataPreprocesed$classe, p=0.7, list=FALSE )
+training <- dataPreprocesed[inTrain,]
+testing <- dataPreprocesed[-inTrain,]
 
 
-# set seed for reproducibility
+# set seed
 set.seed(12345)
 
 
@@ -150,6 +168,9 @@ rdf <-randomForest(classe~.,data=training, mtry=mtry, ntree=501,
 
 ## Acuraccy results
 
+We are trying to see, how accuraccy the model is. We realize that although the training has am accuraccy of 1, acuraccy of the testing sample is 0.99. It seems that there is no overfitting, and it fits well.
+
+
 ```{r}
 
 pred_training <- predict(rdf, newdata = training)
@@ -160,10 +181,12 @@ postResample(pred_testing, testing$classe)
 ```
 
 
-## Predictions for answer
-```{r}
-answer<-predict(rdf,valPrep)
-answer
-```
+## Predictions for results
 
+Finally we use the validation of twenty registers to predict the results.
+
+```{r}
+results<-predict(rdf,valPreprocesed)
+results
+```
 
